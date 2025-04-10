@@ -1,0 +1,40 @@
+name: Deploy to Staging and Production
+
+on:
+  push:
+    branches:
+      - staging
+      - production
+
+jobs:
+  deploy:
+    runs-on: amazon-linux
+    environment:
+      name: ${{ github.ref == 'refs/heads/staging' && 'staging' || 'production' }}
+
+    steps:
+      # Checkout the code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Set up JDK for Java
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # Build the WAR file with Maven
+      - name: Build with Maven
+        run: mvn clean package
+
+      # Deploy to Staging or Production
+      - name: Deploy to Environment
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          TOMCAT_PATH: ${{ github.ref == 'refs/heads/staging' && '/opt/tomcat-staging/webapps' || '/opt/tomcat-production/webapps' }}
+        run: |
+          echo "Deploying to ${{ github.ref == 'refs/heads/staging' && 'Staging' || 'Production' }}"
+          sshpass -p "$SERVER_PASSWORD" scp -o StrictHostKeyChecking=no target/sample-webapp.war $SERVER_USER@$SERVER_IP:$TOMCAT_PATH
